@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Physics Online Test | CBT Mode</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <!-- Chart.js for Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- html2pdf for Reports -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- MathJax for Formula Support -->
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-dark: #1d4ed8;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-800: #1e293b;
+      --slate-900: #0f172a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: var(--slate-50);
+      margin: 0;
+      color: var(--slate-900);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* --- LOGIN OVERLAY --- */
+    #loginOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--slate-900); z-index: 2000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .login-card {
+      background: white; padding: 40px; border-radius: 16px; width: 100%; max-width: 400px;
+      text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    .login-input {
+      width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid var(--slate-200);
+      border-radius: 8px; font-size: 16px;
+    }
+    .btn-start {
+      width: 100%; padding: 14px; background: var(--primary); color: white; border: none;
+      border-radius: 8px; font-weight: 700; font-size: 16px; cursor: pointer;
+    }
+    .btn-start:hover { background: var(--primary-dark); }
+    .btn-start:disabled { background: var(--slate-200); color: var(--slate-800); cursor: not-allowed; }
+
+    .loading-status { color: var(--warning); margin-bottom: 15px; font-size: 14px; min-height: 20px; }
+
+    /* --- WARNING MODAL (PROCTORING) --- */
+    #warningOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(239, 68, 68, 0.95); z-index: 3000;
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; color: white; text-align: center;
+      animation: pulseWarning 0.5s infinite alternate;
+    }
+    .warning-box {
+      background: white; color: var(--slate-900); padding: 30px; border-radius: 12px;
+      max-width: 400px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    }
+    .warning-btn {
+      background: var(--danger); color: white; border: none; padding: 10px 20px;
+      margin-top: 15px; border-radius: 6px; font-weight: 600; cursor: pointer;
+    }
+    @keyframes pulseWarning { from { background: rgba(239, 68, 68, 0.9); } to { background: rgba(220, 38, 38, 0.95); } }
+
+    /* --- Header --- */
+    header {
+      background: var(--slate-900);
+      color: white;
+      height: 54px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      z-index: 50;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .header-info { display: flex; gap: 20px; font-size: 14px; }
+    .header-info span { opacity: 0.9; }
+    .header-info strong { color: var(--primary); font-weight: 600; }
+
+    .header-right { display: flex; align-items: center; gap: 15px; }
+
+    .timer-box {
+      background: rgba(255,255,255,0.1);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      min-width: 100px;
+      text-align: center;
+    }
+    .timer-box.urgent { color: var(--danger); background: rgba(239,68,68,0.2); }
+
+    .btn-finish {
+      background: var(--danger);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-finish:hover { background: #dc2626; }
+
+    /* --- Progress Bar --- */
+    .progress-container { height: 4px; background: var(--slate-200); width: 100%; }
+    .progress-bar { height: 100%; background: var(--success); width: 0%; transition: width 0.3s ease; }
+
+    /* --- Main Layout --- */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      flex: 1;
+      height: calc(100vh - 58px);
+      overflow: hidden;
+    }
+
+    /* --- Left: Question Area --- */
+    .question-area {
+      padding: 30px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .q-card {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+      min-height: 400px;
+      display: none;
+    }
+    .q-card.active { display: block; animation: fadeIn 0.3s ease; }
+
+    .q-meta {
+      display: flex; justify-content: space-between; margin-bottom: 20px;
+      font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #64748b; font-weight: 700;
+    }
+
+    .q-text { font-size: 20px; line-height: 1.6; margin-bottom: 20px; font-weight: 600; }
+
+    /* --- FIXED IMAGE CSS --- */
+    .q-image {
+      display: block;
+      max-width: 100%;
+      max-height: 200px; 
+      width: auto;       
+      margin: 0 auto 25px; 
+      border-radius: 8px;
+      border: 1px solid var(--slate-200);
+      cursor: zoom-in;
+      transition: transform 0.2s ease-in-out, box-shadow 0.2s;
+      transform-origin: center center;
+      background: white;
+    }
+
+    .q-image:hover {
+      transform: scale(1.8);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      z-index: 50; 
+      position: relative; 
+    }
+
+    /* Inputs */
+    .mcq-options { display: grid; gap: 14px; position: relative; z-index: 1; }
+    .mcq-label {
+      display: flex; align-items: center; padding: 18px;
+      border: 2px solid var(--slate-200); border-radius: 10px;
+      cursor: pointer; transition: all 0.2s; font-size: 16px;
+    }
+    .mcq-label:hover { background: var(--slate-50); border-color: #cbd5e1; }
+    .mcq-label input { margin-right: 15px; transform: scale(1.3); accent-color: var(--primary); }
+    .mcq-label:has(input:checked) {
+      background: #eff6ff; border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .input-box {
+      width: 100%; padding: 16px; border: 2px solid var(--slate-200);
+      border-radius: 10px; font-size: 16px; font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    .input-box:focus { outline: none; border-color: var(--primary); }
+
+    /* Footer Actions */
+    .footer-actions {
+      max-width: 900px; margin: 30px auto 0; width: 100%;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 14px; }
+    .btn-secondary { background: white; border: 1px solid var(--slate-200); color: var(--slate-800); }
+    .btn-secondary:hover { background: var(--slate-50); }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-review { background: transparent; color: var(--slate-800); display: flex; align-items: center; gap: 6px; }
+    .btn-review.active { color: var(--warning); }
+
+    /* --- Right: Navigation Panel --- */
+    .nav-panel {
+      background: white; border-left: 1px solid var(--slate-200);
+      padding: 24px; overflow-y: auto; display: flex; flex-direction: column;
+    }
+
+    .nav-header { font-weight: 800; margin-bottom: 20px; font-size: 14px; text-transform: uppercase; color: var(--slate-800); }
+
+    .grid-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    .nav-btn {
+      aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--slate-200);
+      background: #f8fafc; font-weight: 600; font-size: 13px;
+      color: var(--slate-800); cursor: pointer; transition: all 0.2s;
+    }
+    .nav-btn:hover { background: #e2e8f0; }
+    .nav-btn.current { border-color: var(--primary); background: white; box-shadow: 0 0 0 2px var(--primary); z-index: 2; }
+    .nav-btn.answered { background: var(--success); color: white; border-color: var(--success); }
+    .nav-btn.review { background: var(--warning); color: white; border-color: var(--warning); }
+    
+    .nav-actions { margin-top: auto; padding-top: 20px; border-top: 1px solid var(--slate-200); }
+    .btn-submit-block { width: 100%; background: var(--slate-900); color: white; padding: 14px; border-radius: 8px; border:none; font-weight: 700; cursor: pointer; }
+    .btn-submit-block:hover { background: #334155; }
+
+    .legend { margin-top: 20px; display: grid; gap: 10px; font-size: 12px; color: #64748b; }
+    .legend-item { display: flex; align-items: center; gap: 10px; }
+    .dot { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* --- Analytics / Results --- */
+    .results-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: var(--slate-50); z-index: 100;
+      display: none; flex-direction: column; padding: 40px; overflow-y: auto;
+    }
+
+    /* PDF Print Container Styles */
+    #pdfContent {
+      max-width: 1000px; margin: 0 auto; width: 100%;
+      background: white; padding: 20px; border-radius: 12px;
+    }
+
+    /* Score Overview Section */
+    .score-overview {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;
+      margin-bottom: 25px;
+    }
+    .score-card {
+      padding: 15px; border-radius: 12px; text-align: center; color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .bg-correct { background: var(--success); }
+    .bg-wrong { background: var(--danger); }
+    .bg-pending { background: var(--warning); color: white; }
+    .bg-unanswered { background: #94a3b8; }
+    
+    .score-val { font-size: 28px; font-weight: 800; display: block; line-height: 1; margin-bottom: 4px; }
+    .score-lbl { font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.9; }
+
+    .analytics-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+      margin-bottom: 30px; margin-top: 20px;
+    }
+    .stat-card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.05); text-align: center; border: 1px solid var(--slate-200); }
+    .stat-value { font-size: 28px; font-weight: 800; display: block; margin-top: 8px; }
+    .stat-label { font-size: 12px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px; }
+
+    .topic-breakdown {
+      margin-bottom: 30px;
+      border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px;
+    }
+    .topic-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid #f1f5f9;
+    }
+    .topic-item:last-child { border-bottom: none; }
+    .topic-name { font-weight: 600; font-size: 14px; width: 30%; }
+    .topic-bar-container { flex: 1; margin: 0 15px; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+    .topic-bar { height: 100%; background: #ef4444; border-radius: 4px; }
+    .topic-stat { font-size: 13px; color: #64748b; font-weight: 500; min-width: 80px; text-align: right; }
+
+    .charts-container { display: grid; grid-template-columns: 350px 1fr; gap: 30px; width: 100%; }
+    .chart-box { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px -2px rgba(0,0,0,0.05); border: 1px solid var(--slate-200); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+    /* Review Section Styles */
+    .review-item { border-bottom: 1px solid #e2e8f0; padding: 20px 0; }
+    .review-item:last-child { border-bottom: none; }
+    .review-q-text { font-weight: 600; margin-bottom: 12px; color: var(--slate-900); }
+    .review-options { display: grid; gap: 8px; }
+    .review-opt { 
+      padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px; 
+      font-size: 14px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .review-opt.correct { border-color: var(--success); background: #f0fdf4; }
+    .review-opt.wrong { border-color: var(--danger); background: #fef2f2; }
+    .user-badge {
+      font-size: 10px; text-transform: uppercase; font-weight: 700;
+      padding: 2px 6px; border-radius: 4px; margin-left: 8px;
+    }
+    .badge-correct { background: var(--success); color: white; }
+    .badge-wrong { background: var(--danger); color: white; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .main-layout { grid-template-columns: 1fr; }
+      .nav-panel { display: none; }
+      .charts-container { grid-template-columns: 1fr; }
+      .analytics-grid { grid-template-columns: 1fr 1fr; }
+      .score-overview { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body oncontextmenu="return false;">
+
+<!-- WARNING OVERLAY -->
+<div id="warningOverlay">
+  <div class="warning-box">
+    <h2 style="margin-top:0; color:#ef4444">⚠️ Warning <span id="warningCountDisplay">1</span>/3</h2>
+    <p>You switched tabs or minimized the window.</p>
+    <p style="font-size:14px; margin-top:10px;">If this happens <strong>3 times</strong>, your test will be automatically submitted as malpractice.</p>
+    <button class="warning-btn" onclick="closeWarning()">I Understand</button>
+  </div>
+</div>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <h2 style="margin-top:0; color:var(--slate-900)">Welcome to Physics CBT</h2>
+    <p style="color:#64748b; margin-bottom:20px">Please enter your details to start the test.</p>
+    
+    <div id="loadingStatus" class="loading-status">Connecting to Question Bank...</div>
+    
+    <input type="text" id="studentName" class="login-input" placeholder="Enter Full Name" autocomplete="off">
+    <button class="btn-start" id="startBtn" onclick="startTest()" disabled>Loading...</button>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="header-left">
+    <div class="header-info">
+      <span>Student: <strong id="displayStudentName">--</strong></span>
+      <span>Subject: <strong>Physics</strong></span>
+      <span>Teacher: <strong>Satya Mehta</strong></span>
+    </div>
+  </div>
+  
+  <div class="header-right">
+    <div class="timer-box" id="timer">01:00:00</div>
+    <button class="btn-finish" onclick="attemptSubmit()">Finish Test</button>
+  </div>
+</header>
+
+<!-- Progress -->
+<div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+
+<!-- Main Layout -->
+<div class="main-layout" id="mainLayout">
+  
+  <!-- Question Area -->
+  <div class="question-area" id="questionContainer">
+    <!-- Questions injected via JS -->
+  </div>
+
+  <!-- Navigation Panel -->
+  <div class="nav-panel">
+    <div class="nav-header">Question Palette</div>
+    <div class="grid-container" id="navGrid"></div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="dot" style="background:#f8fafc; border:1px solid #ccc"></div> Unvisited</div>
+      <div class="legend-item"><div class="dot" style="background:var(--success)"></div> Answered</div>
+      <div class="legend-item"><div class="dot" style="background:var(--warning)"></div> Review</div>
+      <div class="legend-item"><div class="dot" style="border:2px solid var(--primary)"></div> Current</div>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn-submit-block" onclick="attemptSubmit()">Submit Test</button>
+    </div>
+  </div>
+</div>
+
+<!-- Footer Controls -->
+<div class="footer-actions" id="footerControls">
+  <button class="btn btn-secondary" id="btnPrev">Previous</button>
+  <button class="btn btn-review" id="btnReview">Mark for Review</button>
+  <button class="btn btn-primary" id="btnNext">Next Question</button>
+</div>
+
+<!-- Analytics / Result Overlay -->
+<div class="results-overlay" id="resultsView">
+  <div style="text-align: right; max-width: 1000px; margin: 0 auto 10px; width: 100%;">
+    <button class="btn btn-primary" onclick="downloadPDF()">⬇ Download PDF Report</button>
+  </div>
+  
+  <!-- Content to be printed to PDF -->
+  <div id="pdfContent">
+    <div>
+      <h1 style="margin:0 0 10px 0; color: var(--slate-900);">Physics Test Report</h1>
+      <p style="color:#64748b; margin-bottom: 20px;">Student: <span id="reportStudentName"></span> | Subject: Physics | Teacher: Satya Mehta</p>
+      
+      <!-- New Score Overview Section -->
+      <div class="score-overview">
+        <div class="score-card bg-correct">
+          <span class="score-val" id="sumCorrect">0</span>
+          <span class="score-lbl">Correct</span>
+        </div>
+        <div class="score-card bg-wrong">
+          <span class="score-val" id="sumWrong">0</span>
+          <span class="score-lbl">Wrong</span>
+        </div>
+        <div class="score-card bg-pending">
+          <span class="score-val" id="sumPending">0</span>
+          <span class="score-lbl">Pending Eval</span>
+        </div>
+        <div class="score-card bg-unanswered">
+          <span class="score-val" id="sumUnanswered">0</span>
+          <span class="score-lbl">Unanswered</span>
+        </div>
+      </div>
+
+      <p style="color:var(--warning); margin-bottom:30px; font-size: 14px; background: #fffbeb; padding: 10px; border-radius: 6px; border: 1px solid #fcd34d;">
+        ⚠️ Note: Numerical & Theory answers are pending manual evaluation by the teacher. Scores shown are for MCQs only.
+      </p>
+    </div>
+
+    <div class="analytics-grid">
+      <div class="stat-card">
+        <div class="stat-label">⚡ Speed Score</div>
+        <div class="stat-value" id="scoreSpeed">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🧠 Accuracy</div>
+        <div class="stat-value" id="scoreAccuracy">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🔥 Overthinking</div>
+        <div class="stat-value" id="scoreOverthink" style="color:var(--danger)">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🎯 Guessing</div>
+        <div class="stat-value" id="scoreGuess" style="color:var(--warning)">--</div>
+      </div>
+    </div>
+
+    <!-- Weak Topics Section -->
+    <div id="topicAnalysis" class="topic-breakdown" style="display:none">
+      <h3 style="margin-top:0; font-size:16px; display:flex; align-items:center; gap:8px;">
+        <span style="font-size:20px">📢</span> Weak Topics & Revision Priority
+      </h3>
+      <div id="topicList"></div>
+    </div>
+
+    <div class="charts-container">
+      <div class="chart-box">
+        <h3 style="margin:0 0 15px 0; font-size:14px; color:#64748b;">Performance Distribution</h3>
+        <canvas id="doughnutChart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3 style="margin:0 0 15px 0; font-size:14px; color:#64748b;">Time Per Question (Seconds)</h3>
+        <canvas id="barChart" style="width:100%; height:250px;"></canvas>
+      </div>
+    </div>
+
+    <!-- Detailed Review Section -->
+    <div id="detailedReview"></div>
+  </div>
+</div>
+
+<script>
+/** * CONFIGURATION 
+ * Replace URL below with your Google Apps Script URL 
+ */
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhKwFQoWF8i0JGv3KiJx-ZHpxVHrEX-srfHO8Y-rgyvlUSSI42bq3bRPcjSh5ZbKbOWQ/exec"; 
+
+// DB will be populated from Google Sheets
+let DB = [];
+
+const STORAGE_KEY = 'physicsTestState_v9';
+let state = {
+  studentName: "", 
+  currentIdx: 0,
+  timeLeft: 3600,
+  answers: {}, // Stores index for MCQs (0,1,2,3), string for others
+  timeSpent: {},
+  reviewStatus: {},
+  isSubmitted: false,
+  isStarted: false,
+  warnings: 0
+};
+
+// MathJax Configuration
+window.MathJax = {
+  tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }
+};
+
+const els = {
+  loginOverlay: document.getElementById('loginOverlay'),
+  warningOverlay: document.getElementById('warningOverlay'),
+  warningCountDisplay: document.getElementById('warningCountDisplay'),
+  studentInput: document.getElementById('studentName'),
+  startBtn: document.getElementById('startBtn'),
+  loadingStatus: document.getElementById('loadingStatus'),
+  displayName: document.getElementById('displayStudentName'),
+  reportName: document.getElementById('reportStudentName'),
+  timer: document.getElementById('timer'),
+  progressBar: document.getElementById('progressBar'),
+  container: document.getElementById('questionContainer'),
+  navGrid: document.getElementById('navGrid'),
+  btnPrev: document.getElementById('btnPrev'),
+  btnNext: document.getElementById('btnNext'),
+  btnReview: document.getElementById('btnReview'),
+  mainLayout: document.getElementById('mainLayout'),
+  footer: document.getElementById('footerControls'),
+  results: document.getElementById('resultsView')
+};
+
+// --- HELPER: NORMALIZE TEXT ---
+function normalizeText(str) {
+  if(!str) return "";
+  // Remove all whitespace and convert to lowercase
+  return str.toString().replace(/\s+/g, '').toLowerCase();
+}
+
+// --- INIT: FETCH DATA FIRST ---
+function init() {
+  fetchQuestions().then(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.isStarted && !parsed.isSubmitted) {
+          state = { ...state, ...parsed };
+          els.loginOverlay.style.display = 'none'; 
+          els.displayName.textContent = state.studentName || "Student";
+        }
+      } catch(e) {}
+    }
+
+    renderQuestions();
+    renderNav();
+    updateUI();
+    setInterval(tickTimer, 1000);
+
+    els.btnNext.onclick = () => {
+      if (state.currentIdx === DB.length - 1) {
+        attemptSubmit();
+      } else {
+        jumpTo(state.currentIdx + 1);
+      }
+    };
+    els.btnPrev.onclick = () => jumpTo(state.currentIdx - 1);
+    els.btnReview.onclick = toggleReview;
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+  });
+}
+
+function handleVisibilityChange() {
+  if (document.hidden && state.isStarted && !state.isSubmitted) {
+    state.warnings++;
+    saveState();
+    if (state.warnings >= 3) {
+      submitTest(true);
+    } else {
+      els.warningCountDisplay.textContent = state.warnings;
+      els.warningOverlay.style.display = "flex";
+    }
+  }
+}
+
+function closeWarning() {
+  els.warningOverlay.style.display = "none";
+}
+
+async function fetchQuestions() {
+  if (GOOGLE_SCRIPT_URL.includes("YOUR_APPS_SCRIPT_URL_HERE")) {
+    els.loadingStatus.innerHTML = "⚠️ Config Error: Script URL not set.";
+    return;
+  }
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL);
+    const data = await response.json();
+    
+    if (data.error) {
+      els.loadingStatus.innerHTML = "❌ Error: " + data.error;
+      return;
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      els.loadingStatus.innerHTML = "❌ Error: No questions found in sheet.";
+      return;
+    }
+
+    DB = data;
+    els.loadingStatus.innerHTML = "✅ Test Ready";
+    els.loadingStatus.style.color = "var(--success)";
+    els.startBtn.disabled = false;
+    els.startBtn.textContent = "Start Test";
+
+  } catch (e) {
+    console.error(e);
+    els.loadingStatus.innerHTML = "❌ Connection Failed. Check internet.";
+  }
+}
+
+function startTest() {
+  const name = els.studentInput.value.trim();
+  if (!name) {
+    alert("Please enter your name to continue.");
+    return;
+  }
+  
+  state.studentName = name;
+  state.isStarted = true;
+  els.displayName.textContent = state.studentName;
+  els.loginOverlay.style.display = 'none';
+  saveState();
+}
+
+function renderQuestions() {
+  if(DB.length === 0) return;
+
+  els.container.innerHTML = DB.map((q, idx) => {
+    let inputHTML = '';
+    let imageHTML = q.image ? `<img src="${q.image}" class="q-image" alt="Question Image" onerror="this.style.display='none'">` : '';
+
+    if (q.type === 'mcq') {
+      // Store INDEX as value, not text
+      inputHTML = `<div class="mcq-options">${q.options.map((opt, i) => `
+        <label class="mcq-label">
+          <input type="radio" name="q${q.id}" value="${i}" ${state.answers[q.id]===i?'checked':''} onchange="handleAnswer(${q.id}, ${i})">
+          ${opt}
+        </label>`).join('')}</div>`;
+    } else if (q.type === 'numerical') {
+      inputHTML = `<input type="number" class="input-box" placeholder="Value..." value="${state.answers[q.id]||''}" oninput="handleAnswer(${q.id}, this.value)">`;
+    } else {
+      inputHTML = `<textarea class="input-box" rows="8" placeholder="Answer here..." oninput="handleAnswer(${q.id}, this.value)">${state.answers[q.id]||''}</textarea>`;
+    }
+    return `<div class="q-card ${idx===state.currentIdx?'active':''}" id="card-${idx}">
+      <div class="q-meta"><span>Q${idx+1}/${DB.length}</span><span>${q.topic} • ${q.marks} Marks</span></div>
+      <div class="q-text">${q.question}</div>
+      ${imageHTML}
+      ${inputHTML}</div>`;
+  }).join('');
+  
+  if(window.MathJax) {
+    window.MathJax.typesetPromise();
+  }
+}
+
+function renderNav() {
+  if(DB.length === 0) return;
+  els.navGrid.innerHTML = DB.map((q, idx) => `
+    <button class="nav-btn" id="nav-${idx}" onclick="jumpTo(${idx})">${idx + 1}</button>
+  `).join('');
+  updateNavStyles();
+}
+
+function tickTimer() {
+  if (!state.isStarted || state.isSubmitted) return;
+  state.timeLeft--;
+  const currentQID = DB[state.currentIdx] ? DB[state.currentIdx].id : null;
+  if(currentQID) {
+    state.timeSpent[currentQID] = (state.timeSpent[currentQID] || 0) + 1;
+  }
+  if (state.timeLeft % 5 === 0) saveState();
+  const h = Math.floor(state.timeLeft/3600).toString().padStart(2,'0');
+  const m = Math.floor((state.timeLeft%3600)/60).toString().padStart(2,'0');
+  const s = (state.timeLeft%60).toString().padStart(2,'0');
+  els.timer.textContent = `${h}:${m}:${s}`;
+  if(state.timeLeft<300) els.timer.classList.add('urgent');
+  if(state.timeLeft<=0) submitTest();
+}
+
+function jumpTo(idx) {
+  if (idx < 0 || idx >= DB.length || state.isSubmitted) return;
+  document.getElementById(`card-${state.currentIdx}`).classList.remove('active');
+  state.currentIdx = idx;
+  document.getElementById(`card-${state.currentIdx}`).classList.add('active');
+  updateUI();
+  saveState();
+}
+
+function handleAnswer(qId, val) {
+  state.answers[qId] = val;
+  updateNavStyles();
+  updateProgress();
+  saveState();
+}
+
+function toggleReview() {
+  const qId = DB[state.currentIdx].id;
+  state.reviewStatus[qId] = !state.reviewStatus[qId];
+  updateNavStyles();
+  updateUI();
+  saveState();
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function updateUI() {
+  els.btnPrev.disabled = state.currentIdx === 0;
+  els.btnNext.textContent = state.currentIdx === DB.length - 1 ? 'Finish' : 'Next Question';
+  if(DB.length > 0) {
+    const qId = DB[state.currentIdx].id;
+    if (state.reviewStatus[qId]) {
+      els.btnReview.classList.add('active'); els.btnReview.innerText = '⚠️ Unmark Review';
+    } else {
+      els.btnReview.classList.remove('active'); els.btnReview.innerText = 'Mark for Review';
+    }
+  }
+  updateNavStyles();
+  updateProgress();
+}
+
+function updateNavStyles() {
+  if(DB.length === 0) return;
+  DB.forEach((q, idx) => {
+    const btn = document.getElementById(`nav-${idx}`);
+    if(!btn) return;
+    btn.className = 'nav-btn';
+    if (idx === state.currentIdx) btn.classList.add('current');
+    const ans = state.answers[q.id];
+    if (ans !== undefined && ans !== null && ans !== "") btn.classList.add('answered');
+    if (state.reviewStatus[q.id]) btn.classList.add('review');
+  });
+}
+
+function updateProgress() {
+  const cnt = Object.values(state.answers).filter(v => v !== undefined && v !== null && v !== "").length;
+  els.progressBar.style.width = `${(cnt/DB.length)*100}%`;
+}
+
+function attemptSubmit() {
+  const answered = Object.values(state.answers).filter(v => v !== undefined && v !== null && v !== "").length;
+  const total = DB.length;
+  const remaining = total - answered;
+  let msg = remaining > 0 ? `You have ${remaining} unanswered questions. Are you sure you want to finish?` : `Ready to submit your test?`;
+  if(confirm(msg)) submitTest();
+}
+
+function submitTest(force = false) {
+  if (state.isSubmitted) return;
+  if (force) alert("Test automatically submitted due to malpractice detected.");
+  
+  state.isSubmitted = true;
+  
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    if(document.fullscreenElement) document.exitFullscreen().catch(e=>{});
+
+    els.mainLayout.style.display = 'none';
+    els.footer.style.display = 'none';
+    els.results.style.display = 'flex';
+    els.reportName.textContent = state.studentName;
+    
+    calculateAnalytics();
+    generateDetailedReview(); // Generate the review section
+    submitToGoogleSheets(force);
+  } catch(e) {
+    console.error(e);
+    els.mainLayout.style.display = 'none';
+    els.footer.style.display = 'none';
+    els.results.style.display = 'flex';
+  }
+}
+
+function generateDetailedReview() {
+  const container = document.getElementById('detailedReview');
+  if (!container) return;
+
+  let html = '<h3 style="margin:30px 0 15px 0; border-top:2px dashed #e2e8f0; padding-top:30px;">📝 Detailed Review</h3>';
+
+  DB.forEach((q, index) => {
+    const userAnsIndex = state.answers[q.id]; 
+    let content = '';
+
+    if (q.type === 'mcq') {
+      let correctIndex = -1;
+      q.options.forEach((opt, i) => {
+        if (normalizeText(opt) === normalizeText(q.correct)) correctIndex = i;
+      });
+
+      content += `<div class="review-options">`;
+      q.options.forEach((opt, i) => {
+        let classes = 'review-opt';
+        let badge = '';
+
+        const isSelected = (userAnsIndex === i);
+        const isCorrect = (correctIndex === i);
+
+        if (isCorrect) {
+          classes += ' correct';
+        } else if (isSelected && !isCorrect) {
+          classes += ' wrong';
+        }
+
+        if (isSelected) {
+          const badgeClass = isCorrect ? 'badge-correct' : 'badge-wrong';
+          badge = `<span class="user-badge ${badgeClass}">Your Answer</span>`;
+        }
+
+        content += `<div class="${classes}">
+          <span>${opt}</span>
+          ${badge}
+        </div>`;
+      });
+      content += `</div>`;
+    } else {
+      const userVal = userAnsIndex || "Not Answered";
+      content += `<div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+        <strong>Your Answer:</strong> ${userVal}
+        ${q.correct ? `<br><strong style="color:var(--success)">Correct Answer:</strong> ${q.correct}` : '<br><em style="color:#64748b">Pending Evaluation</em>'}
+      </div>`;
+    }
+
+    const imgHTML = q.image ? `<img src="${q.image}" style="max-height:150px; margin:10px 0; display:block; border-radius:6px; border:1px solid #e2e8f0;">` : '';
+
+    html += `
+      <div class="review-item">
+        <div class="review-q-text">Q${index+1}. ${q.question}</div>
+        ${imgHTML}
+        ${content}
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+  
+  if(window.MathJax) {
+    window.MathJax.typesetPromise([container]);
+  }
+}
+
+function calculateAnalytics() {
+  let correct=0, wrong=0, pending=0, unanswered=0, over=0, guess=0;
+  const times = Object.values(state.timeSpent);
+  const avg = (times.reduce((a,b)=>a+b,0) / DB.length) || 1;
+  const topicStats = {};
+
+  DB.forEach(q => {
+    if(!topicStats[q.topic]) topicStats[q.topic] = { total:0, lost:0 };
+    topicStats[q.topic].total++;
+
+    const time = state.timeSpent[q.id] || 0;
+    const ans = state.answers[q.id];
+    let isLost = false;
+
+    if (q.type === 'mcq') {
+      if (ans === undefined || ans === null || ans === "") {
+        unanswered++;
+        isLost = true;
+      } else {
+        const selectedText = q.options[ans];
+        if (normalizeText(selectedText) === normalizeText(q.correct)) {
+          correct++;
+        } else {
+          wrong++;
+          isLost = true;
+          if (time < 5) guess++; 
+          if (time > avg * 1.5) over++; 
+        }
+      }
+    } else {
+      if (ans) pending++;
+      else {
+        unanswered++;
+        isLost = true;
+      }
+    }
+    if(isLost) topicStats[q.topic].lost++;
+  });
+
+  const speed = Math.max(0, Math.min(100, Math.round(100 - ((avg - 60)/60 * 50))));
+  const conf = Math.round((correct/10)*100);
+
+  document.getElementById('sumCorrect').innerText = correct;
+  document.getElementById('sumWrong').innerText = wrong;
+  document.getElementById('sumPending').innerText = pending;
+  document.getElementById('sumUnanswered').innerText = unanswered;
+
+  document.getElementById('scoreSpeed').innerText = `${speed}/100`;
+  document.getElementById('scoreAccuracy').innerText = `${conf}%`;
+  document.getElementById('scoreOverthink').innerText = over;
+  document.getElementById('scoreGuess').innerText = guess;
+
+  const sortedTopics = Object.entries(topicStats).sort(([,a], [,b]) => b.lost - a.lost).filter(([,data]) => data.lost > 0);
+  const topicListEl = document.getElementById('topicList');
+  const topicContainer = document.getElementById('topicAnalysis');
+  
+  if(sortedTopics.length > 0) {
+    topicContainer.style.display = 'block';
+    topicListEl.innerHTML = sortedTopics.map(([topic, data]) => {
+      const percentage = (data.lost / data.total) * 100;
+      return `<div class="topic-item"><div class="topic-name">${topic}</div><div class="topic-bar-container"><div class="topic-bar" style="width: ${percentage}%"></div></div><div class="topic-stat">${data.lost}/${data.total} Missed</div></div>`;
+    }).join('');
+  } else {
+    topicContainer.style.display = 'block';
+    topicListEl.innerHTML = '<p style="text-align:center; color:#22c55e; font-weight:600">🎉 No weak topics detected! Perfect performance.</p>';
+  }
+
+  if(typeof Chart !== 'undefined') {
+    new Chart(document.getElementById('doughnutChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Correct', 'Wrong', 'Pending Eval', 'Unanswered'],
+        datasets: [{ data: [correct, wrong, pending, unanswered], backgroundColor: ['#22c55e', '#ef4444', '#f59e0b', '#94a3b8'], borderWidth: 0 }]
+      },
+      options: { cutout: '70%', plugins: { legend: { position:'bottom' } } }
+    });
+    new Chart(document.getElementById('barChart'), {
+      type: 'bar',
+      data: { labels: DB.map((_,i)=>`Q${i+1}`), datasets: [{ label: 'Seconds Spent', data: DB.map(q=>state.timeSpent[q.id]||0), backgroundColor: '#3b82f6', borderRadius: 4 }] },
+      options: { plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, grid:{color:'#f1f5f9'}}, x:{grid:{display:false}}} }
+    });
+  }
+}
+
+function downloadPDF() {
+  const element = document.getElementById('pdfContent');
+  const opt = { margin: [10, 10, 10, 10], filename: `Physics_Test_${state.studentName.replace(/[^a-z0-9]/gi, '_')}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+  html2pdf().set(opt).from(element).save();
+}
+
+function submitToGoogleSheets(forced = false) {
+  if (GOOGLE_SCRIPT_URL.includes("YOUR_APPS_SCRIPT_URL_HERE")) {
+    alert("⚠️ Setup Error: You haven't added your Google Sheets URL yet.");
+    return;
+  }
+  const payload = {
+    student: state.studentName || "Anonymous", 
+    subject: "Physics " + (forced ? "(MALPRACTICE)" : ""), 
+    teacher: "Satya Mehta", 
+    submittedAt: new Date().toISOString(),
+    totalTimeSpent: Object.values(state.timeSpent).reduce((a,b)=>a+b,0),
+    questions: DB.map(q => {
+      let ans = state.answers[q.id];
+      if(q.type === 'mcq' && ans !== undefined && ans !== null && ans !== "") {
+        ans = q.options[ans]; // Convert index to text for Sheet
+      }
+      return { questionNumber: q.id, type: q.type, topic: q.topic, answer: ans || "--" };
+    })
+  };
+  fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+  .then(() => console.log("Sent to Google Sheets")).catch(e => console.error("Sheet Error:", e));
+}
+
+init();
+</script>
+</body>
+</html>
