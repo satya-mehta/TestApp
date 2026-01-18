@@ -450,7 +450,7 @@
       </div>
 
       <p style="color:var(--warning); margin-bottom:30px; font-size: 14px; background: #fffbeb; padding: 10px; border-radius: 6px; border: 1px solid #fcd34d;">
-        ⚠️ Note: Numerical & Theory answers are pending manual evaluation by the teacher. Scores shown are for MCQs only.
+        ⚠️ Note: Theory answers (Text) are pending manual evaluation by the teacher. Scores include MCQs and Numerical answers.
       </p>
     </div>
 
@@ -473,10 +473,10 @@
       </div>
     </div>
 
-    <!-- Weak Topics Section -->
+    <!-- Topics Section -->
     <div id="topicAnalysis" class="topic-breakdown" style="display:none">
       <h3 style="margin-top:0; font-size:16px; display:flex; align-items:center; gap:8px;">
-        <span style="font-size:20px">📢</span> Weak Topics & Revision Priority
+        <span style="font-size:20px">📢</span> Topic Performance & Revision Priority
       </h3>
       <div id="topicList"></div>
     </div>
@@ -840,6 +840,22 @@ function generateDetailedReview() {
         </div>`;
       });
       content += `</div>`;
+    } else if (q.type === 'numerical') {
+       const userVal = userAnsIndex || "Not Answered";
+       const userNum = parseFloat(userVal);
+       const correctNum = parseFloat(q.correct);
+       // Tolerance check for numerical answers (0.01)
+       const isCorrect = (!isNaN(userNum) && !isNaN(correctNum) && Math.abs(userNum - correctNum) < 0.01);
+       
+       let style = 'background:#f8fafc; border:1px solid #e2e8f0;'; // Default
+       if (userAnsIndex) {
+          style = isCorrect ? 'background:#f0fdf4; border:1px solid var(--success);' : 'background:#fef2f2; border:1px solid var(--danger);';
+       }
+
+       content += `<div style="padding:12px; border-radius:8px; ${style}">
+        <strong>Your Answer:</strong> ${userVal}
+        <br><strong style="color:var(--success)">Correct Answer:</strong> ${q.correct}
+      </div>`;
     } else {
       const userVal = userAnsIndex || "Not Answered";
       content += `<div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
@@ -895,6 +911,23 @@ function calculateAnalytics() {
           if (time > avg * 1.5) over++; 
         }
       }
+    } else if (q.type === 'numerical') {
+       if (ans === undefined || ans === null || ans === "") {
+         unanswered++;
+         isLost = true;
+       } else {
+         const userNum = parseFloat(ans);
+         const correctNum = parseFloat(q.correct);
+         
+         if (!isNaN(userNum) && !isNaN(correctNum) && Math.abs(userNum - correctNum) < 0.01) {
+            correct++;
+         } else {
+            wrong++;
+            isLost = true;
+            if (time < 5) guess++;
+            if (time > avg * 1.5) over++; 
+         }
+       }
     } else {
       if (ans) pending++;
       else {
@@ -918,7 +951,13 @@ function calculateAnalytics() {
   document.getElementById('scoreOverthink').innerText = over;
   document.getElementById('scoreGuess').innerText = guess;
 
-  const sortedTopics = Object.entries(topicStats).sort(([,a], [,b]) => b.lost - a.lost).filter(([,data]) => data.lost > 0);
+  // Sorting: Primary by Mistakes (Descending), Secondary by Total Questions (Descending)
+  const sortedTopics = Object.entries(topicStats)
+    .sort(([,a], [,b]) => {
+      if (b.lost !== a.lost) return b.lost - a.lost;
+      return b.total - a.total;
+    });
+
   const topicListEl = document.getElementById('topicList');
   const topicContainer = document.getElementById('topicAnalysis');
   
@@ -926,7 +965,26 @@ function calculateAnalytics() {
     topicContainer.style.display = 'block';
     topicListEl.innerHTML = sortedTopics.map(([topic, data]) => {
       const percentage = (data.lost / data.total) * 100;
-      return `<div class="topic-item"><div class="topic-name">${topic}</div><div class="topic-bar-container"><div class="topic-bar" style="width: ${percentage}%"></div></div><div class="topic-stat">${data.lost}/${data.total} Missed</div></div>`;
+      
+      let barColor = '#ef4444'; // Red
+      let statLabel = `${data.lost}/${data.total} Missed`;
+      let barWidth = percentage;
+
+      if (data.lost === 0) {
+          barColor = '#22c55e'; // Green
+          barWidth = 0; // Empty bar for low priority
+          statLabel = `<span style="color:#22c55e">✔ Strong</span>`;
+      }
+
+      return `
+        <div class="topic-item">
+          <div class="topic-name">${topic}</div>
+          <div class="topic-bar-container">
+            <div class="topic-bar" style="width: ${barWidth}%; background-color:${barColor}"></div>
+          </div>
+          <div class="topic-stat">${statLabel}</div>
+        </div>
+      `;
     }).join('');
   } else {
     topicContainer.style.display = 'block';
