@@ -433,7 +433,7 @@
   
   <div class="header-right">
     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode">🌓</button>
-    <div class="timer-box" id="timer">01:00:00</div>
+    <div class="timer-box" id="timer">01:30:00</div>
     <button class="btn-finish" onclick="attemptSubmit()">Finish Test</button>
   </div>
 </header>
@@ -575,7 +575,7 @@ const STORAGE_KEY = 'physicsTestState_v10';
 let state = {
   studentName: "", 
   currentIdx: 0,
-  timeLeft: 3600,
+  timeLeft: 3600+1800,
   answers: {}, // Stores index for MCQs (0,1,2,3), string for others
   timeSpent: {},
   reviewStatus: {},
