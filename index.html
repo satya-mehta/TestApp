@@ -614,22 +614,24 @@ const els = {
   results: document.getElementById('resultsView')
 };
 
-// --- HELPER: FORMAT DRIVE IMAGE URL ---
-function formatImageURL(url) {
-  if (!url) return "";
-  if (url.includes("drive.google.com") && url.includes("/view")) {
-    const match = url.match(/\/d\/(.+?)\//);
-    if (match && match[1]) {
-      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-    }
-  }
-  return url;
-}
-
 // --- HELPER: NORMALIZE TEXT ---
 function normalizeText(str) {
   if(!str) return "";
   return str.toString().replace(/\s+/g, '').toLowerCase();
+}
+
+// --- HELPER: CONVERT DRIVE LINKS ---
+function formatGoogleDriveURL(url) {
+  if (!url) return "";
+  // Check if it's a Drive URL
+  if (url.includes("drive.google.com") && url.includes("/file/d/")) {
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      // Use standard Google Drive View export
+      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+    }
+  }
+  return url;
 }
 
 // --- INIT: FETCH DATA FIRST ---
@@ -757,9 +759,9 @@ function renderQuestions() {
 
   els.container.innerHTML = DB.map((q, idx) => {
     let inputHTML = '';
-    // Use formatImageURL to handle Drive links
-    let cleanImgUrl = formatImageURL(q.image);
-    let imageHTML = cleanImgUrl ? `<img src="${cleanImgUrl}" class="q-image" alt="Question Image" onerror="this.style.display='none'">` : '';
+    // Format image URL properly
+    const imgUrl = formatGoogleDriveURL(q.image);
+    let imageHTML = imgUrl ? `<img src="${imgUrl}" class="q-image" alt="Question Image" onerror="this.style.display='none'">` : '';
 
     if (q.type === 'mcq') {
       inputHTML = `<div class="mcq-options">${q.options.map((opt, i) => `
@@ -990,7 +992,8 @@ function generateDetailedReview() {
       </div>`;
     }
 
-    const imgHTML = q.image ? `<img src="${formatImageURL(q.image)}" style="max-height:150px; margin:10px 0; display:block; border-radius:6px; border:1px solid #e2e8f0;">` : '';
+    const imgUrl = formatGoogleDriveURL(q.image);
+    const imgHTML = imgUrl ? `<img src="${imgUrl}" style="max-height:150px; margin:10px 0; display:block; border-radius:6px; border:1px solid #e2e8f0;">` : '';
 
     html += `
       <div class="review-item">
@@ -1086,7 +1089,7 @@ function calculateAnalytics() {
   document.getElementById('sumUnanswered').innerText = unanswered;
 
   document.getElementById('scoreSpeed').innerText = `${speed}/100`;
-  document.getElementById('scoreAccuracy').innerText = `${conf}%`;
+  document.getElementById('scoreAccuracy').innerText = `${conf}%`; // Changed ID
   document.getElementById('scoreOverthink').innerText = over;
   document.getElementById('scoreGuess').innerText = guess;
 
