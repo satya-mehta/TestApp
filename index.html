@@ -486,7 +486,7 @@
       <h1 style="margin:0 0 10px 0; color: #0f172a;">Physics Test Report</h1>
       <p style="color:#64748b; margin-bottom: 20px;">Student: <span id="reportStudentName"></span> | Subject: Physics | Teacher: Satya Mehta</p>
       
-      <!-- Total Score Banner (NEW) -->
+      <!-- Total Score Banner -->
       <div class="score-banner">
         <div class="score-banner-label">Total Score</div>
         <div class="score-banner-number">
@@ -571,11 +571,11 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhKwFQoWF8i0
 // DB will be populated from Google Sheets
 let DB = [];
 
-const STORAGE_KEY = 'physicsTestState_v10';
+const STORAGE_KEY = 'physicsTestState_v11';
 let state = {
   studentName: "", 
   currentIdx: 0,
-  timeLeft: 3600+1800,
+  timeLeft: 5400, // 90 minutes
   answers: {}, // Stores index for MCQs (0,1,2,3), string for others
   timeSpent: {},
   reviewStatus: {},
@@ -627,8 +627,7 @@ function formatGoogleDriveURL(url) {
   if (url.includes("drive.google.com") && url.includes("/file/d/")) {
     const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (match && match[1]) {
-      // Use standard Google Drive View export
-      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+      return `https://lh3.googleusercontent.com/d/${match[1]}`;
     }
   }
   return url;
