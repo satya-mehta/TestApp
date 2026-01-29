@@ -62,11 +62,19 @@
     /* --- LOGIN & INSTRUCTIONS OVERLAYS (FORCED DARK) --- */
     .overlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: #0f172a; z-index: 2000; /* Force Dark Background */
+      background: #0f172a; z-index: 2000;
       display: flex; align-items: center; justify-content: center;
+      /* flex-direction: column; */
       padding: 20px;
       color: #f8fafc;
     }
+
+    .developer-card{
+      position: absolute;
+      bottom: 0;
+      color: #94a3b8;  
+    }
+
     .login-card {
       background: #1e293b; padding: 40px; border-radius: 16px; width: 100%; max-width: 500px;
       box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); border: 1px solid #334155;
@@ -89,9 +97,7 @@
     .instr-list li { margin-bottom: 8px; }
     .instr-list strong { color: #f8fafc; }
     
-    /* Custom Checkbox for Dark Mode Overlay */
     .instr-label { display: flex; align-items: center; gap: 10px; margin: 20px 0; cursor: pointer; color: #f8fafc; }
-
     .color-box { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
 
     .btn-start {
@@ -123,7 +129,7 @@
 
     /* --- Header --- */
     header {
-      background: #0f172a; /* Always dark header */
+      background: #0f172a;
       color: white;
       height: 54px;
       padding: 0 20px;
@@ -392,8 +398,15 @@
     <div id="loadingStatus" class="loading-status">Connecting to Question Bank...</div>
     
     <input type="text" id="studentName" class="login-input" placeholder="Enter Full Name" autocomplete="off">
-    <button class="btn-start" id="loginBtn" onclick="showInstructions()" disabled>Loading...</button>
+    
+    <!-- Chapter Dropdown -->
+    <select id="chapterSelect" class="login-input" disabled>
+      <option value="" disabled selected>Loading Chapters...</option>
+    </select>
+
+    <button class="btn-start" id="loginBtn" onclick="showInstructions()" disabled>Proceed</button>
   </div>
+  <h5 class="developer-card">Designed and Developed by Satya Mehta</h5>
 </div>
 
 <!-- INSTRUCTIONS OVERLAY (FORCED DARK) -->
@@ -484,7 +497,7 @@
   <div id="pdfContent">
     <div>
       <h1 style="margin:0 0 10px 0; color: #0f172a;">Physics Test Report</h1>
-      <p style="color:#64748b; margin-bottom: 20px;">Student: <span id="reportStudentName"></span> | Subject: Physics | Teacher: Satya Mehta</p>
+      <p style="color:#64748b; margin-bottom: 20px;">Student: <span id="reportStudentName"></span> | Subject: <span id="reportSubject"></span> | Teacher: Satya Mehta</p>
       
       <!-- Total Score Banner -->
       <div class="score-banner">
@@ -566,29 +579,27 @@
 /** * CONFIGURATION 
  * Replace URL below with your Google Apps Script URL 
  */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhKwFQoWF8i0JGv3KiJx-ZHpxVHrEX-srfHO8Y-rgyvlUSSI42bq3bRPcjSh5ZbKbOWQ/exec"; 
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzQDWQ5uPpBBEeNNXmpb5yPjwz9rRObl6O_TE1OmTP0yHapEd_BVga49VeCtZse3NsI4g/exec"; 
 
 // DB will be populated from Google Sheets
 let DB = [];
 
-const STORAGE_KEY = 'physicsTestState_v11';
+const STORAGE_KEY = 'physicsTestState_v12';
 let state = {
-  studentName: "", 
+  studentName: "",
+  selectedChapter: "",
   currentIdx: 0,
   timeLeft: 5400, // 90 minutes
-  answers: {}, // Stores index for MCQs (0,1,2,3), string for others
+  answers: {}, 
   timeSpent: {},
   reviewStatus: {},
   isSubmitted: false,
   isStarted: false,
   warnings: 0,
-  theme: 'dark' // Default theme set to dark
+  theme: 'dark'
 };
 
-// MathJax Configuration
-window.MathJax = {
-  tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }
-};
+window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 
 const els = {
   loginOverlay: document.getElementById('loginOverlay'),
@@ -596,12 +607,14 @@ const els = {
   warningOverlay: document.getElementById('warningOverlay'),
   warningCountDisplay: document.getElementById('warningCountDisplay'),
   studentInput: document.getElementById('studentName'),
+  chapterSelect: document.getElementById('chapterSelect'),
   loginBtn: document.getElementById('loginBtn'),
   startTestBtn: document.getElementById('startTestBtn'),
   instrCheck: document.getElementById('instrCheck'),
   loadingStatus: document.getElementById('loadingStatus'),
   displayName: document.getElementById('displayStudentName'),
   reportName: document.getElementById('reportStudentName'),
+  reportSubject: document.getElementById('reportSubject'),
   timer: document.getElementById('timer'),
   progressBar: document.getElementById('progressBar'),
   container: document.getElementById('questionContainer'),
@@ -623,7 +636,6 @@ function normalizeText(str) {
 // --- HELPER: CONVERT DRIVE LINKS ---
 function formatGoogleDriveURL(url) {
   if (!url) return "";
-  // Check if it's a Drive URL
   if (url.includes("drive.google.com") && url.includes("/file/d/")) {
     const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (match && match[1]) {
@@ -633,41 +645,42 @@ function formatGoogleDriveURL(url) {
   return url;
 }
 
-// --- INIT: FETCH DATA FIRST ---
+// --- INIT: FETCH CHAPTER LIST FIRST ---
 function init() {
-  fetchQuestions().then(() => {
+  fetchChapters().then(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Apply theme immediately
         if(parsed.theme) {
           state.theme = parsed.theme;
           document.documentElement.setAttribute('data-theme', state.theme);
         }
         
+        // Resume logic: if started & not submitted
         if (parsed.isStarted && !parsed.isSubmitted) {
           state = { ...state, ...parsed };
-          els.loginOverlay.style.display = 'none'; 
-          els.displayName.textContent = state.studentName || "Student";
+          // Need to fetch questions for resumed chapter if DB is empty
+          if (DB.length === 0 && state.selectedChapter) {
+             fetchQuestions(state.selectedChapter).then(() => {
+                els.loginOverlay.style.display = 'none'; 
+                els.displayName.textContent = state.studentName || "Student";
+                updateUI();
+                renderQuestions();
+                renderNav();
+             });
+          }
         }
       } catch(e) {}
     } else {
-        // Initial Theme set
         document.documentElement.setAttribute('data-theme', state.theme);
     }
 
-    renderQuestions();
-    renderNav();
-    updateUI();
     setInterval(tickTimer, 1000);
 
     els.btnNext.onclick = () => {
-      if (state.currentIdx === DB.length - 1) {
-        attemptSubmit();
-      } else {
-        jumpTo(state.currentIdx + 1);
-      }
+      if (state.currentIdx === DB.length - 1) attemptSubmit();
+      else jumpTo(state.currentIdx + 1);
     };
     els.btnPrev.onclick = () => jumpTo(state.currentIdx - 1);
     els.btnReview.onclick = toggleReview;
@@ -699,47 +712,86 @@ function closeWarning() {
   els.warningOverlay.style.display = "none";
 }
 
-async function fetchQuestions() {
-  if (GOOGLE_SCRIPT_URL.includes("YOUR_APPS_SCRIPT_URL_HERE")) {
-    els.loadingStatus.innerHTML = "⚠️ Config Error: Script URL not set.";
-    return;
-  }
+// --- API CALLS ---
+
+async function fetchChapters() {
 
   try {
-    const response = await fetch(GOOGLE_SCRIPT_URL);
-    const data = await response.json();
+    // Mode 1: Get Chapters
+    const response = await fetch(GOOGLE_SCRIPT_URL + "?action=getChapters");
+    const chapters = await response.json();
     
-    if (data.error) {
-      els.loadingStatus.innerHTML = "❌ Error: " + data.error;
+    if (chapters.error) {
+      els.loadingStatus.innerHTML = "❌ Error: " + chapters.error;
       return;
     }
 
-    if (!Array.isArray(data) || data.length === 0) {
-      els.loadingStatus.innerHTML = "❌ Error: No questions found in sheet.";
-      return;
+    // Populate Dropdown
+    els.chapterSelect.innerHTML = `<option value="" disabled selected>Select Chapter</option>`;
+    if (chapters.length === 0) {
+       els.chapterSelect.innerHTML += `<option value="" disabled>No chapters found</option>`;
+    } else {
+       chapters.forEach(c => {
+         els.chapterSelect.innerHTML += `<option value="${c}">${c}</option>`;
+       });
+       els.chapterSelect.disabled = false;
+       els.loginBtn.disabled = false;
+       els.loadingStatus.innerHTML = "✅ Connected";
+       els.loadingStatus.style.color = "var(--success)";
     }
-
-    DB = data;
-    els.loadingStatus.innerHTML = "✅ Ready";
-    els.loadingStatus.style.color = "var(--success)";
-    els.loginBtn.disabled = false;
-    els.loginBtn.textContent = "Proceed";
 
   } catch (e) {
     console.error(e);
-    els.loadingStatus.innerHTML = "❌ Connection Failed. Check internet.";
+    els.loadingStatus.innerHTML = "❌ Connection Failed.";
   }
 }
 
-function showInstructions() {
-  const name = els.studentInput.value.trim();
-  if (!name) {
-    alert("Please enter your name to continue.");
-    return;
+async function fetchQuestions(chapterName) {
+  els.loginBtn.textContent = "Loading Questions...";
+  els.loginBtn.disabled = true;
+  
+  try {
+    const url = GOOGLE_SCRIPT_URL + "?chapter=" + encodeURIComponent(chapterName);
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.error || !Array.isArray(data) || data.length === 0) {
+      alert("Error loading questions: " + (data.error || "Empty sheet"));
+      els.loginBtn.disabled = false;
+      return false;
+    }
+
+    DB = data;
+    return true;
+
+  } catch (e) {
+    alert("Failed to load questions.");
+    els.loginBtn.disabled = false;
+    return false;
   }
+}
+
+// --- UI FLOW ---
+
+async function showInstructions() {
+  const name = els.studentInput.value.trim();
+  const chapter = els.chapterSelect.value;
+
+  if (!name) { alert("Please enter your name."); return; }
+  if (!chapter) { alert("Please select a chapter."); return; }
+
+  // Fetch Questions for Selected Chapter
+  const success = await fetchQuestions(chapter);
+  if(!success) return;
+
   state.studentName = name;
+  state.selectedChapter = chapter;
+  
   els.loginOverlay.style.display = 'none';
   els.instrOverlay.style.display = 'flex';
+  
+  renderQuestions();
+  renderNav();
 }
 
 function toggleStartBtn() {
@@ -753,12 +805,13 @@ function startTest() {
   saveState();
 }
 
+// --- RENDERING ---
+
 function renderQuestions() {
   if(DB.length === 0) return;
 
   els.container.innerHTML = DB.map((q, idx) => {
     let inputHTML = '';
-    // Format image URL properly
     const imgUrl = formatGoogleDriveURL(q.image);
     let imageHTML = imgUrl ? `<img src="${imgUrl}" class="q-image" alt="Question Image" onerror="this.style.display='none'">` : '';
 
@@ -795,6 +848,8 @@ function renderNav() {
   updateNavStyles();
 }
 
+// --- LOGIC ---
+
 function tickTimer() {
   if (!state.isStarted || state.isSubmitted) return;
   state.timeLeft--;
@@ -803,10 +858,12 @@ function tickTimer() {
     state.timeSpent[currentQID] = (state.timeSpent[currentQID] || 0) + 1;
   }
   if (state.timeLeft % 5 === 0) saveState();
+  
   const h = Math.floor(state.timeLeft/3600).toString().padStart(2,'0');
   const m = Math.floor((state.timeLeft%3600)/60).toString().padStart(2,'0');
   const s = (state.timeLeft%60).toString().padStart(2,'0');
   els.timer.textContent = `${h}:${m}:${s}`;
+  
   if(state.timeLeft<300) els.timer.classList.add('urgent');
   if(state.timeLeft<=0) submitTest();
 }
@@ -829,16 +886,9 @@ function handleAnswer(qId, val) {
 
 function clearSelection(qId) {
   if(state.isSubmitted) return;
-  
-  // Clear from state
   delete state.answers[qId];
-  
-  // Clear from UI (Radio buttons)
   const radios = document.getElementsByName(`q${qId}`);
-  if(radios) {
-    for(let r of radios) r.checked = false;
-  }
-  
+  if(radios) { for(let r of radios) r.checked = false; }
   updateNavStyles();
   updateProgress();
   saveState();
@@ -911,6 +961,7 @@ function submitTest(force = false) {
     els.footer.style.display = 'none';
     els.results.style.display = 'flex';
     els.reportName.textContent = state.studentName;
+    els.reportSubject.textContent = "Physics - " + state.selectedChapter;
     
     // Force white theme for results
     document.documentElement.setAttribute('data-theme', 'light');
@@ -971,7 +1022,6 @@ function generateDetailedReview() {
        const userVal = userAnsIndex || "Not Answered";
        const userNum = parseFloat(userVal);
        const correctNum = parseFloat(q.correct);
-       // Tolerance check for numerical answers (0.01)
        const isCorrect = (!isNaN(userNum) && !isNaN(correctNum) && Math.abs(userNum - correctNum) < 0.01);
        
        let style = 'background:#f8fafc; border:1px solid #e2e8f0;'; // Default
@@ -1020,7 +1070,6 @@ function calculateAnalytics() {
   const topicStats = {};
 
   DB.forEach(q => {
-    // Accumulate Max Score
     const qMarks = parseFloat(q.marks) || 0;
     maxScore += qMarks;
 
@@ -1078,7 +1127,6 @@ function calculateAnalytics() {
   const speed = Math.max(0, Math.min(100, Math.round(100 - ((avg - 60)/60 * 50))));
   const conf = Math.round((correct/DB.length)*100);
 
-  // Update Score Display
   document.getElementById('totalScoreVal').innerText = totalScore;
   document.getElementById('maxScoreVal').innerText = maxScore;
 
@@ -1088,7 +1136,7 @@ function calculateAnalytics() {
   document.getElementById('sumUnanswered').innerText = unanswered;
 
   document.getElementById('scoreSpeed').innerText = `${speed}/100`;
-  document.getElementById('scoreAccuracy').innerText = `${conf}%`; // Changed ID
+  document.getElementById('scoreAccuracy').innerText = `${conf}%`;
   document.getElementById('scoreOverthink').innerText = over;
   document.getElementById('scoreGuess').innerText = guess;
 
@@ -1147,7 +1195,7 @@ function downloadPDF() {
 function submitToGoogleSheets(forced = false) {
   const payload = {
     student: state.studentName || "Anonymous", 
-    subject: "Physics " + (forced ? "(MALPRACTICE)" : ""), 
+    subject: "Physics - " + state.selectedChapter + (forced ? " (MALPRACTICE)" : ""), 
     teacher: "Satya Mehta", 
     submittedAt: new Date().toISOString(),
     totalTimeSpent: Object.values(state.timeSpent).reduce((a,b)=>a+b,0),
