@@ -579,7 +579,6 @@
  */
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyM_JD-l_KaA5Y1Qi8TYoyGbQKqCpLAl76fqXKI9MDJMYjDvXSyH8-z4bh3ukH3PeVnXw/exec"; 
 
-// DB will be populated from Google Sheets
 let DB = [];
 
 const STORAGE_KEY = 'physicsTestState_v12';
@@ -1191,12 +1190,19 @@ function downloadPDF() {
 }
 
 function submitToGoogleSheets(forced = false) {
+  
+  // Capture score from the DOM
+  const tScore = document.getElementById('totalScoreVal').innerText || "0";
+  const mScore = document.getElementById('maxScoreVal').innerText || "0";
+  const scoreStr = `${tScore}/${mScore}`;
+
   const payload = {
     student: state.studentName || "Anonymous", 
     subject: "Physics - " + state.selectedChapter + (forced ? " (MALPRACTICE)" : ""), 
     teacher: "Satya Mehta", 
     submittedAt: new Date().toISOString(),
     totalTimeSpent: Object.values(state.timeSpent).reduce((a,b)=>a+b,0),
+    score: scoreStr, // <-- Now properly adding the score to the data sent!
     questions: DB.map(q => {
       let ans = state.answers[q.id];
       if(q.type === 'mcq' && ans !== undefined && ans !== null && ans !== "") {
