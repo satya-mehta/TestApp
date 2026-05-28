@@ -765,6 +765,96 @@
         border-radius: 12px;
         color: #0f172a; /* Force Light mode for PDF */
       }
+      #pdfContent .score-card,
+      #pdfContent .chart-box,
+      #pdfContent .review-item {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .report-actions {
+        text-align: right;
+        max-width: 1000px;
+        margin: 0 auto 10px;
+        width: 100%;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      @media print {
+        @page {
+          margin: 10mm;
+          size: A4 portrait;
+        }
+
+        body {
+          background: #fff !important;
+          color: #000 !important;
+          height: auto !important;
+          overflow: visible !important;
+          padding: 0 !important;
+        }
+
+        #examSelectionOverlay,
+        #loginOverlay,
+        #instrOverlay,
+        #warningOverlay,
+        header,
+        .progress-container,
+        #mainLayout,
+        #footerControls,
+        .developer-card,
+        .report-actions {
+          display: none !important;
+        }
+
+        #resultsView {
+          position: static !important;
+          display: block !important;
+          overflow: visible !important;
+          height: auto !important;
+          width: 100% !important;
+          padding: 0 !important;
+          background: #fff !important;
+          color: #000 !important;
+        }
+
+        #pdfContent {
+          max-width: 100% !important;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background: #fff !important;
+          color: #000 !important;
+        }
+
+        #pdfContent .score-card,
+        #pdfContent .chart-box,
+        #pdfContent .review-item,
+        #pdfContent .topic-breakdown {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+
+        #pdfContent .q-text,
+        #pdfContent .question-text,
+        #pdfContent .review-q-text,
+        #pdfContent .review-opt,
+        #pdfContent .option-content {
+          overflow: visible !important;
+          max-height: none !important;
+          word-break: break-word !important;
+          overflow-wrap: anywhere !important;
+          white-space: normal !important;
+        }
+
+        body[data-print-mode="summary"] #detailedReview {
+          display: none !important;
+        }
+      }
 
       /* Score Banner */
       .score-banner {
@@ -1278,18 +1368,16 @@
 
     <!-- Analytics / Result Overlay -->
     <div class="results-overlay" id="resultsView">
-      <div
-        style="
-          text-align: right;
-          max-width: 1000px;
-          margin: 0 auto 10px;
-          width: 100%;
-        "
-      >
+      <div class="report-actions">
+        <button
+          class="btn btn-secondary"
+          id="downloadQuickPdfBtn"
+          onclick="downloadSummaryPDF()"
+        ></button>
         <button
           class="btn btn-primary"
-          id="downloadPdfBtn"
-          onclick="downloadPDF()"
+          id="downloadFullPdfBtn"
+          onclick="downloadFullPDF()"
         ></button>
       </div>
 
@@ -1484,7 +1572,8 @@
             previousButton: "Previous",
             nextButton: "Next Question",
             finalNextButton: "Finish",
-            downloadPdfButton: "⬇ Download PDF Report",
+            downloadQuickPdfButton: "🖨️ Quick PDF",
+            downloadFullPdfButton: "🖨️ Full Report PDF",
             questionPalette: "Question Palette",
             unvisited: "Unvisited",
             answered: "Answered",
@@ -1643,6 +1732,7 @@
 
       let STORAGE_KEY = "";
       let lastComputedAccuracy = 0;
+      let activePrintMode = "";
       const LEGACY_STORAGE_KEYS = {
         PHYSICS: ["phys", "icsTestState_v12"].join(""),
         AFCAT: "afcatTestState_v12",
@@ -1718,7 +1808,8 @@
         reportExamLabel: document.getElementById("reportExamLabel"),
         reportTeacherLabel: document.getElementById("reportTeacherLabel"),
         reportTeacherName: document.getElementById("reportTeacherName"),
-        downloadPdfBtn: document.getElementById("downloadPdfBtn"),
+        downloadQuickPdfBtn: document.getElementById("downloadQuickPdfBtn"),
+        downloadFullPdfBtn: document.getElementById("downloadFullPdfBtn"),
         totalScoreLabel: document.getElementById("totalScoreLabel"),
         correctSummaryLabel: document.getElementById("correctSummaryLabel"),
         wrongSummaryLabel: document.getElementById("wrongSummaryLabel"),
@@ -1912,10 +2003,13 @@
         els.btnPrev.textContent = EXAM_CONFIG.labels.previousButton;
         els.btnNext.textContent = EXAM_CONFIG.labels.nextButton;
         els.btnReview.textContent = EXAM_CONFIG.labels.reviewButton;
-        els.downloadPdfBtn.textContent = EXAM_CONFIG.labels.downloadPdfButton;
-        els.downloadPdfBtn.style.display = EXAM_CONFIG.features.pdfExport
-          ? ""
-          : "none";
+        els.downloadQuickPdfBtn.textContent =
+          EXAM_CONFIG.labels.downloadQuickPdfButton || "🖨️ Quick PDF";
+        els.downloadFullPdfBtn.textContent =
+          EXAM_CONFIG.labels.downloadFullPdfButton || "🖨️ Full Report PDF";
+        const pdfDisplay = EXAM_CONFIG.features.pdfExport ? "" : "none";
+        els.downloadQuickPdfBtn.style.display = pdfDisplay;
+        els.downloadFullPdfBtn.style.display = pdfDisplay;
         els.reportTitle.textContent = getReportTitle();
         els.reportStudentLabel.textContent = EXAM_CONFIG.labels.studentLabel;
         els.reportExamLabel.textContent = EXAM_CONFIG.labels.examLabel;
@@ -2284,6 +2378,10 @@
         }
         return Promise.resolve();
       }
+
+      window.addEventListener("afterprint", () => {
+        if (activePrintMode) clearPrintMode();
+      });
 
       // --- INIT: FETCH CHAPTER LIST FIRST ---
       function init() {
@@ -3039,9 +3137,64 @@
         }
       }
 
-      function downloadPDF() {
+      function setReportButtonsDisabled(disabled) {
+        if (els.downloadQuickPdfBtn) els.downloadQuickPdfBtn.disabled = disabled;
+        if (els.downloadFullPdfBtn) els.downloadFullPdfBtn.disabled = disabled;
+      }
+
+      function clearPrintMode() {
+        activePrintMode = "";
+        document.body.removeAttribute("data-print-mode");
+        setReportButtonsDisabled(false);
+      }
+
+      async function printReport(mode = "full") {
         if (!EXAM_CONFIG.features.pdfExport) return;
         const element = document.getElementById("pdfContent");
+        if (!element) {
+          console.error("[PRINT PDF] Export container not found");
+          return;
+        }
+
+        setReportButtonsDisabled(true);
+        activePrintMode = mode === "summary" ? "summary" : "full";
+        document.body.setAttribute("data-print-mode", activePrintMode);
+
+        try {
+          await safeMathJaxTypeset([element]);
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          await new Promise((resolve) => setTimeout(resolve, 80));
+          console.log("[PRINT PDF] Opening print dialog", {
+            mode: activePrintMode,
+          });
+          window.print();
+          setTimeout(() => {
+            if (activePrintMode) clearPrintMode();
+          }, 1000);
+        } catch (error) {
+          console.error("[PRINT PDF] Failed before print", error);
+          clearPrintMode();
+          alert("Unable to prepare printable report. Please try again.");
+        }
+      }
+
+      function downloadSummaryPDF() {
+        return printReport("summary");
+      }
+
+      function downloadFullPDF() {
+        return printReport("full");
+      }
+
+      function downloadPDF() {
+        return downloadFullPDF();
+      }
+
+      async function downloadPDFLegacy() {
+        if (!EXAM_CONFIG.features.pdfExport || typeof html2pdf === "undefined")
+          return;
+        const element = document.getElementById("pdfContent");
+        if (!element) return;
         const safeName = (
           state.studentName || EXAM_CONFIG.labels.studentLabel
         ).replace(/[^a-z0-9]/gi, "_");
@@ -3050,10 +3203,11 @@
           margin: [10, 10, 10, 10],
           filename: `${safeExam}_Test_${safeName}.pdf`,
           image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2 },
+          html2canvas: { scale: 1.2, backgroundColor: "#ffffff" },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          pagebreak: { mode: ["css", "legacy"] },
         };
-        html2pdf().set(opt).from(element).save();
+        return html2pdf().set(opt).from(element).save();
       }
 
       function submitToGoogleSheets(forced = false) {
